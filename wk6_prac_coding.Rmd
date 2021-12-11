@@ -5,7 +5,6 @@ date: "2021/12/11"
 output: html_document
 ---
 
-
 ```{r library}
 #first library a few packages that we will use during the practical
 #note you may need to install them first...
@@ -20,9 +19,12 @@ library(sf)
 library(geojson)
 library(geojsonio)
 library(tmaptools)
+library(stringr)
+library(janitor)
 ```
 
 #setting up data
+
 ```{r read data}
 LondonBoroughs <- st_read(here::here('data',
                                      'statistical-gis-boundaries-london',
@@ -30,7 +32,6 @@ LondonBoroughs <- st_read(here::here('data',
                                      'London_Borough_Excluding_MHW.shp'))
 qtm(LondonBoroughs)
 ```
-
 
 ```{r}
 library(stringr)
@@ -50,6 +51,7 @@ BluePlaques <- st_read(here::here('data',
 
 summary(BluePlaques)
 ```
+
 ```{r}
 #plot the blue plaques in the city
 tmap_mode('plot')
@@ -61,7 +63,9 @@ tm_shape(BluePlaques)+
   
 ```
 
-```{r 6.5.1 data cleaning}
+# 6.5.1 data cleaning
+
+```{r }
 #remove duplicates
 library(tidyverse)
 
@@ -69,8 +73,10 @@ library(sf)
 BluePlaques <- distinct(BluePlaques)
 ```
 
-```{r 6.5.2 spatial subsetting}
-BluePlaquesSub <- BluePlaques[BoroughMap,]#点在map区域中
+# 6.5.2 spatial subsetting
+
+```{r }
+BluePlaquesSub <- BluePlaques[BoroughMap,op=st_within]#点在map区域中
 
 tmap_mode('plot')
 tm_shape(BoroughMap)+
@@ -82,14 +88,16 @@ tm_shape(BluePlaquesSub)+
 ```{r 6.5.3 Study area}
 #extract the borough
 Harrow <- BoroughMap%>%
-  filter(.,NAME=='Harrow')
+  clean_names()%>%
+  filter(.,name=='Harrow')
 
 tm_shape(Harrow)+
   tm_polygons(col=NA,alpha=0.5)
 ```
 
 ```{r}
-BluePlaquesHarrowSub <- BluePlaquesSub[Harrow,]
+BluePlaquesHarrowSub <- BluePlaquesSub[Harrow,op=st_within]
+
 
 tmap_mode('plot')
 
@@ -98,39 +106,61 @@ tm_shape(Harrow)+
 tm_shape(BluePlaquesHarrowSub)+
   tm_dots(col='blue',size=0.1)
 
+
+```
+
+```{r}
 #now set a window as the borough boundary
 window <- as.owin(Harrow)
 plot(window)
 ```
 
+# create a point pattern (ppp) object
+
 ```{r}
-#create a point pattern (ppp) object
+#create a sp object
 BluePlaquesHarrowSub <- BluePlaquesHarrowSub%>%
   as(., 'Spatial')
+```
 
+```{r}
+#create a point pattern (ppp) object
 BluePlaquesHarrowSub.ppp <- ppp(x=BluePlaquesHarrowSub@coords[,1],
                                 y=BluePlaquesHarrowSub@coords[,2],
                                 window=window)
 
+```
+
+```{r}
 BluePlaquesHarrowSub@coords[,1]
+```
+
+```{r}
 
 BluePlaquesHarrowSub.ppp%>%
-  plot(.,pch=15,cex=0.5,     #pch为填充形状，pch=16实心圆
+  plot(.,pch=16,cex=0.5,     #pch为填充形状，pch=16实心圆
        main='Blue Plaques Harrow')
 ```
 
-#6.6 point pattern analysis
-```{r 6.6.1 kernel density estimation}
+# 6.6 point pattern analysis
+
+# 6.6.1 kernel density estimation
+
+```{r}
 BluePlaquesHarrowSub.ppp%>%
   density(.,sigma=500)%>%
   plot()
+```
 
+```{r}
 BluePlaquesHarrowSub.ppp%>%
   density(.,sigma=1000)%>%
   plot()
 ```
 
-```{r 6.6.2 quadrat analysis}
+# 6.6.2 quadrat analysis
+
+```{r}
 #first plot the points
 plot(BluePlaquesHarrowSub.ppp,pch=16,cex=0.5,main='Blue Plaques in Harrow')
 
@@ -167,7 +197,11 @@ lambda <- Qcount%>%
   dplyr::select(lambda)%>%
   pull(lambda)
 ```
-#Calculate expected using the Poisson formula from above  kis the number of blue plaques counted in a square and is found in the first column of our table
+
+#Calculate expected using the Poisson formula from above kis the number of blue plaques counted in a square and is found in the first column of our table
+
+![](data/possion.png)
+
 ```{r}
 QCountTable <- Qcount%>%
   mutate(Pr=((lambda^Var1)*exp(-lambda))/factorial(Var1))%>%
@@ -188,6 +222,8 @@ points(QCountTable$Expected,col='Blue',
        lwd=3)
 ```
 
+![](data/1.png){width="664"}
+
 ```{r}
 teststats <- quadrat.test(BluePlaquesHarrowSub.ppp,nx=6,ny=6)
 
@@ -195,13 +231,20 @@ plot(BluePlaquesHarrowSub.ppp,pch=16,cex=0.5,main='Blue Plaques in Harrow')
 plot(teststats,add=T,col='red')
 ```
 
-```{r 6.6.4 Ripley's K}
+![](data/2.png)
+
+![](data/3.png)
+
+
+# 6.6.4 Ripley's K
+```{r}
 K <- BluePlaquesHarrowSub.ppp%>%
   Kest(.,correction = 'border')%>%
   plot()
 ```
 
-```{r 6.7Density-based spatial clustering of applications with noise: DBSCAN}
+# 6.7Density-based spatial clustering of applications with noise: DBSCAN
+```{r}
 library(raster)
 library(fpc)
 ```
@@ -308,8 +351,8 @@ autoplot.OpenStreetMap(basemap_bng)+
                alpha=0.5)
 ```
 
+#6.9 Analysing Spatial Autocorrelation with Moran's I, LISA and friends
 
-#6.9 Analysing Spatial Autocorrelation with Moran’s I, LISA and friends
 ```{r}
 library(here)
 library(janitor)
@@ -325,6 +368,7 @@ LondonWardsMerged <- st_read(here::here('data',
                                   'London_Ward_CityMerged.shp'))%>%
   st_transform(.,27700)
 ```
+
 ```{r}
 WardData <- read_csv(here::here('data',
                                 'ward_profiles_excel_version.csv')) %>% 
@@ -358,7 +402,7 @@ plot(LondonWardsMerged)
 #we might need to lose the blue plaques that fall outside of London
 summary(BluePlaques)
 
-BluePlaquesSub <- BluePlaques[LondonWardsMerged,]
+BluePlaquesSub <- BluePlaques[LondonWardsMerged,op=st_intersection]
 
 tm_shape(LondonWardsMerged)+
   tm_polygons(col=NA,alpha = 0.5)+
@@ -417,7 +461,6 @@ LWard_nb <- points_sf_joined%>%
 summary(LWard_nb)
 ```
 
-
 ```{r}
 #plot them
 plot(LWard_nb,st_geometry(coordsw),col='red')
@@ -469,11 +512,11 @@ G_LWard_Global_Density <- points_sf_joined%>%
 G_LWard_Global_Density
 ```
 
-#The Moran’s I statistic = 0.67 (remember 1 = clustered, 0 = no pattern, -1 = dispersed) which shows that we have some distinctive clustering
+#The Moran's I statistic = 0.67 (remember 1 = clustered, 0 = no pattern, -1 = dispersed) which shows that we have some distinctive clustering
 
-#The Geary’s C statistic = 0.41 (remember Geary’s C falls between 0 and 2; 1 means no spatial autocorrelation, <1 - positive spatial autocorrelation or similar values clustering, >1 - negative spatial autocorreation or dissimilar values clustering) which shows that similar values are clustering
+#The Geary's C statistic = 0.41 (remember Geary's C falls between 0 and 2; 1 means no spatial autocorrelation, \<1 - positive spatial autocorrelation or similar values clustering, \>1 - negative spatial autocorreation or dissimilar values clustering) which shows that similar values are clustering
 
-#The General G statistic = G > expected, so high values are tending to cluster.
+#The General G statistic = G \> expected, so high values are tending to cluster.
 
 ```{r}
 #use the localmoran functio to generate I for each ward in the city
@@ -492,7 +535,6 @@ I_LWard_Local_Density <- points_sf_joined%>%
 
 slice_head(I_LWard_Local_Density,n=5)
 ```
-
 
 ```{r}
 points_sf_joined <- points_sf_joined %>%
@@ -516,6 +558,7 @@ tm_shape(points_sf_joined) +
         title="Local Moran's I, Blue Plaques in London")
 
 ```
+
 #This map shows some areas in the centre of London that have relatively high scores, indicating areas with lots of blue plaques neighbouring other areas with lots of blue plaques.
 
 ```{r}
@@ -526,7 +569,6 @@ Gi_LWard_Local_Density <- points_sf_joined %>%
 
 head(Gi_LWard_Local_Density)
 ```
-
 
 ```{r}
 points_sf_joined <- points_sf_joined %>%
@@ -546,7 +588,6 @@ tm_shape(points_sf_joined) +
         title="Gi*, Blue Plaques in London")
 ```
 
-
 ```{r 6.9.6 Other variables}
 #use head to see what other variables are in the data file
 
@@ -561,7 +602,6 @@ Datatypelist <- LondonWardsMerged %>%
 
 Datatypelist
 ```
-
 
 ```{r}
 I_LWard_Local_GCSE <- LondonWardsMerged %>%
@@ -585,7 +625,6 @@ tm_shape(points_sf_joined) +
         title="Local Moran's I, GCSE Scores")
 ```
 
-
 ```{r}
 G_LWard_Local_GCSE <- LondonWardsMerged %>%
   dplyr::arrange(GSS_CODE)%>%
@@ -605,4 +644,3 @@ tm_shape(points_sf_joined) +
         midpoint=NA,
         title="Gi*, GCSE Scores")
 ```
-
