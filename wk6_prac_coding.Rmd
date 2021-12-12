@@ -436,7 +436,7 @@ tm_shape(points_sf_joined) +
         style="jenks",
         palette="PuOr",
         midpoint=NA,
-        popup.vars=c("wardname", "density"),
+        popup.vars=c("wardname", "density"), #popup.vars为交互式地图中的标签
         title="Blue Plaque Density")
 ```
 
@@ -587,8 +587,8 @@ tm_shape(points_sf_joined) +
         midpoint=NA,
         title="Gi*, Blue Plaques in London")
 ```
-
-```{r 6.9.6 Other variables}
+# 6.9.6 Other variables
+```{r}
 #use head to see what other variables are in the data file
 
 slice_head(points_sf_joined, n=2)
